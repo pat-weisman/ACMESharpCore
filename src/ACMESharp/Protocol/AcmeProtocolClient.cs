@@ -86,7 +86,7 @@ namespace ACMESharp.Protocol
         private IJwsTool ResolveDefaultSigner()
         {
             // We default to ES256 signer
-            var signer = new Crypto.JOSE.Impl.ESJwsTool();
+            var signer = new Crypto.JOSE.Impl.RSJwsTool();
             signer.Init();
             return signer;
         }

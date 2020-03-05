@@ -52,5 +52,6 @@ namespace ACMECLI
         public const string ValidStatus = "valid";
         public const string InvalidStatus = "invalid";
         public const string PendingStatus = "pending";
+        public const string ProcessingStatus = "processing";
     }
 }

@@ -135,6 +135,7 @@ namespace ACMECLI
             Console.WriteLine("################################################################################");
             Console.WriteLine();
 
+
             if (!Directory.Exists(_statePath))
             {
                 Console.WriteLine($"Creating State Persistence Path [{_statePath}]");
@@ -185,7 +186,7 @@ namespace ACMECLI
             }
 
             _http = new HttpClient { BaseAddress = new Uri(url), };
-            _acme = new AcmeProtocolClient(_http, acmeDir, account, accountSigner);
+            _acme = new AcmeProtocolClient(_http, acmeDir, account, accountSigner, usePostAsGet: true);
             if (acmeDir == null || RefreshDir)
             {
                 Console.WriteLine("Refreshing Service Directory");
@@ -472,6 +473,23 @@ namespace ACMECLI
                 }
             }
             
+            if (order.Payload.Status == Constants.ProcessingStatus)
+            {
+                Console.WriteLine("Finalization is being processed, waiting for completion...");
+                var waitUntil = DateTime.Now.AddSeconds(
+                        WaitForAuthz.timeout.GetValueOrDefault(30));
+
+                order = await _acme.GetOrderDetailsAsync(order.OrderUrl, existing: order);
+                SaveStateFrom(order, Constants.AcmeOrderDetailsFileFmt, orderId);
+
+                while (order.Payload.Status == Constants.ProcessingStatus && DateTime.Now < waitUntil)
+                {
+                    Thread.Sleep(1 * 1000);
+                    order = await _acme.GetOrderDetailsAsync(order.OrderUrl, existing: order);
+                    SaveStateFrom(order, Constants.AcmeOrderDetailsFileFmt, orderId);
+                }
+            }
+
             if (order.Payload.Status == Constants.ValidStatus)
             {
                 Console.WriteLine("Order is VALID");
@@ -509,12 +527,8 @@ namespace ACMECLI
                 if (RefreshCert || !StateExists(Constants.AcmeOrderCertFmt, orderId))
                 {
                     Console.WriteLine("Fetching Certificate...");
-                    var certResp = await _http.GetAsync(order.Payload.Certificate);
-                    certResp.EnsureSuccessStatusCode();
-                    using (var ras = await certResp.Content.ReadAsStreamAsync())
-                    {
-                        SaveRaw(ras, Constants.AcmeOrderCertFmt, orderId);
-                    }
+                    var certResp = await _acme.GetOrderCertificateAsync(order);
+                    SaveRaw(certResp, Constants.AcmeOrderCertFmt, orderId);
                 }
                 else
                 {
